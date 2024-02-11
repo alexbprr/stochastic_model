@@ -8,3 +8,7 @@ edition = "2021"
 [dependencies]
 rand = "0.8.5"
 rand_distr = "0.4.3"
+pest = "2.7.7"
+pest_derive = "2.7.7"
+anyhow = "1.0.79"
+mexprp = "0.3.1"
