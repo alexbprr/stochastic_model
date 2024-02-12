@@ -10,5 +10,6 @@ fn main(){
     stochastic_model.parse_input(Path::new("./src/tests/predator_prey.txt"));
     println!("{:#?}", stochastic_model);
     stochastic_model.print_reactions();
-    stochastic_model.calculate_rates();
+    stochastic_model.gillespie();
+
 }

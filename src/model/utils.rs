@@ -11,7 +11,7 @@ pub fn to_disk<P: AsRef<Path>>(path: P, data: Vec<String>) -> anyhow::Result<(),
         Err(e) => return Err(e.into()),
     };
     for v in &data{                                                                                                                                                      
-        write!(file, "{ }", v)?;                                                                                                                             
+        write!(file, "{ }", v)?;
     }
     Ok(())
 }
