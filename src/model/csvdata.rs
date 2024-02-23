@@ -1,6 +1,8 @@
-use std::io::Read;
+use std::{io::Read, path::Path};
 
-use csv::Writer;
+use csv::{Writer, WriterBuilder};
+
+use super::Model;
 
 #[derive(Default, Debug)]
 pub struct CSVData {
@@ -51,10 +53,25 @@ impl CSVData {
         Ok(data)
     }
 
-    pub fn save_date(){
-        let mut wtr = Writer::from_path("foo.csv");
-        //wtr.write_record(&["a", "b", "c"]);error 
-        //wtr.write_record(&["x", "y", "z"]);
+    pub fn save_data(model: &Model) -> Result<(), Box<dyn std::error::Error>>{
+        let writer_result = Writer::from_path(Path::new("./src/tests/simulation_result.csv"));
+        let mut writer = match writer_result {
+            Ok(writer) => writer,
+            Err(err) => return Err(Box::new(err)),
+        };
+        writer.write_record(&model.populations).unwrap();
+        let mut index = 0;
+        for state in model.states.iter() {
+            //let time_state: Vec<f64> = state.insert(0, model.times[index]);
+
+            let states_record: Vec<String> = state.iter().map(|v| v.to_string()).collect();
+            let record_result = match writer.write_record(states_record) {
+                 Ok(record_result) => record_result,
+                 Err(err) => return Err(Box::new(err)),            
+            };
+            index += 1;
+        }
+        Ok(())
     }
 
     pub fn population_count(&self) -> usize {

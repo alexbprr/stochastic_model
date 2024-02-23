@@ -8,8 +8,6 @@ mod model;
 fn main(){
     let mut stochastic_model: Model = Model::new();
     stochastic_model.parse_input(Path::new("./src/tests/predator_prey.txt"));
-    println!("{:#?}", stochastic_model);
-    stochastic_model.print_reactions();
-    stochastic_model.gillespie();
-
+    //println!("{:#?}", stochastic_model);
+    stochastic_model.gillespie(50.0);
 }

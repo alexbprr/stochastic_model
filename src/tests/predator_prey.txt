@@ -2,11 +2,11 @@ metadata:
     t_ini = 0.0,
     t_final = 10.0;
 populations:
-    H = 75.0,
+    H = 100.0,
     P = 8.0;
 constants:
-    r = 0.05,
-    a = 0.02, 
+    r = 0.08,
+    a = 0.005, 
     m = 0.2 ;
 reactions: 
     r*H -> H,

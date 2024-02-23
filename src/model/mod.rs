@@ -2,12 +2,14 @@ mod utils;
 mod csvdata;
 #[feature(entry_and_modify)]
 use std::collections::HashMap;
-use std::{path::Path, process::Output, vec};
+use std::{path::Path, vec};
 use mexprp::{Answer, Expression};
 use pest_derive::Parser;
 use pest::Parser;
 use rand_distr::{Distribution, Exp};
 use random_choice::random_choice;
+
+use crate::model::csvdata::CSVData;
 
 //type of a value: metadata, population or constant
 #[derive(Clone,Debug)]
@@ -78,6 +80,8 @@ pub struct Model {
     values: HashMap<String,ModelValue>, //constants and populations
     reactions: Vec<Reaction>,
     states: Vec<Vec<i32>>,
+    populations: Vec<String>,
+    times: Vec<f64>,
 }
 
 #[derive(Parser)]
@@ -90,6 +94,8 @@ impl Model {
             values: HashMap::new(),
             reactions: vec![],
             states: vec![],
+            populations: vec![],
+            times: vec![],
         }
     }    
 
@@ -127,6 +133,9 @@ impl Model {
                                             for pair in child_rule.into_inner() {
                                                 if matches!(pair.as_rule(), Rule::Identifier){
                                                     key = pair.as_span().as_str().trim().to_string();
+                                                    if matches!(c_type, CType::Population) {
+                                                        self.populations.push(key.clone());
+                                                    }
                                                 }
                                                 else if matches!(pair.as_rule(), Rule::Value){
                                                     let value = pair.as_span().as_str().parse::<f64>(); 
@@ -134,10 +143,7 @@ impl Model {
                                                         let v: f64 = value.unwrap();
                                                         //self.values.insert(key.clone(), ModelValue::new(c_type.clone(), ValueType::float(v)));
                                                         self.values.insert(key.clone(), ModelValue::new(c_type.clone(), v));
-                                                    }
-                                                    /*else {
-                                                        self.values.insert(key.clone(), ModelValue::new(c_type.clone(), ValueType::string(pair.as_span().as_str().to_string())));
-                                                    } */                                           
+                                                    }                                                                                               
                                                 }
                                             }   
                                         }   
@@ -199,19 +205,15 @@ impl Model {
         
     }
 
-    pub fn print_reactions(&mut self) {
+    pub fn update_reactions(&mut self) {
         
         for reaction in self.reactions.iter_mut() {
             let mut test: String = reaction.expr_text.clone();
             for input in &reaction.inputs {
-                //let value_type: ValueType = self.values.get(input).unwrap().value_type.clone();
-                //if let ValueType::float(v) = value_type {                    
-                //    test = test.replace(&input.clone(), v.to_string().as_str());
-                //}
                 test = test.replace(&input.clone(), self.values.get(input).unwrap().value_type.clone().to_string().as_str());
             }
             reaction.numeric_expr = test.clone();
-            println!("{:?}", reaction.numeric_expr);
+            //println!("{:?}", reaction.numeric_expr);
         }
     }
 
@@ -222,34 +224,37 @@ impl Model {
     }
 
     fn update_population(&self) -> Vec<i32>{
-        unimplemented!()
+        let mut state: Vec<i32> = vec![];
+        for pop in self.populations.iter(){
+            if let Some(value) = self.values.get(pop){
+                state.push(value.value_type as i32);
+            }
+        }
+        return state
     }
 
-    pub fn gillespie(&mut self){
-        unimplemented!();
-
-        let mut times: Vec<f64> = vec![];
-        times.push(0.0);
+    pub fn gillespie(&mut self, t_final: f64){
+        //to do: get t_final from metadata
+        self.times.push(0.0);        
+        self.update_reactions();
+        self.states.push(self.update_population());
         
-        println!("{:#?}", self);
-        self.states[0] = self.update_population();
-        
-        while times.last().unwrap() < &2.0 {
-            println!("t = {:?}", times.last().unwrap());
-            let state: &Vec<i32> = self.states.last().unwrap();
-            
+        while self.times.last().unwrap() < &t_final {
+            println!("state (t = {:?}): {:#?}", self.times.last().unwrap(), self.states.last().unwrap());
+                    
             self.calculate_rates();
 
             let sum: f64 = self.reactions
-                                    .iter()
-                                    .fold(0.0, |acc,r| acc + r.rate);
+                                .iter()
+                                .fold(0.0, |acc,r| acc + r.rate);
             
             let weights: Vec<f64> = self.reactions
                                         .iter()
                                         .map(|r| r.rate/sum)
                                         .collect();
 
-            let choices = random_choice().random_choice_f64(&self.reactions, &weights, 1);
+            let choices = random_choice()
+                                            .random_choice_f64(&self.reactions, &weights, 1);
             for choice in choices {
                 println!("reaction chosen = {:?}", choice);
                 
@@ -258,13 +263,17 @@ impl Model {
                         .entry(output.0.clone())
                         .and_modify(|v: &mut ModelValue| v.value_type = v.value_type + output.1 as f64);
                 }
-            }
+            } 
 
-            //println!("current state = {:#?}", self.values);
+            println!("values: {:#?}", self.values);           
             
             let exp: Exp<f64> = Exp::new(sum).unwrap();
             let dt: f64 = exp.sample(&mut rand::thread_rng());            
-            times.push(times.last().unwrap() + dt);   
+            self.times.push(self.times.last().unwrap() + dt);
+            
+            self.states.push(self.update_population());
+            self.update_reactions();
+            CSVData::save_data(self).unwrap();
         }
 
     }
