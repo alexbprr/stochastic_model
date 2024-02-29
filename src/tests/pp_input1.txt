@@ -1,6 +1,6 @@
 metadata: 
     t_ini = 0.0,
-    t_final = 10.0;
+    t_final = 20.0;
 populations:
     H = 100.0,
     P = 8.0;

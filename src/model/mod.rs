@@ -1,13 +1,26 @@
 mod utils;
 mod csvdata;
+use std::borrow::BorrowMut;
 #[feature(entry_and_modify)]
 use std::collections::HashMap;
+use std::process::Output;
 use std::{path::Path, vec};
+use charming::component::{Axis, Title};
+use charming::element::{AxisType, Color, LineStyle};
+use charming::series::Line;
+use charming::theme::Theme;
+use charming::{ImageRenderer, ImageFormat};
+use charming::{
+    component::Legend,
+    element::ItemStyle,
+    Chart
+};
 use mexprp::{Answer, Expression};
 use pest_derive::Parser;
 use pest::Parser;
 use rand_distr::{Distribution, Exp};
 use random_choice::random_choice;
+use regex::Regex;
 
 use crate::model::csvdata::CSVData;
 
@@ -67,7 +80,6 @@ impl Reaction {
         let res: Result<mexprp::Answer<f64>, mexprp::MathError> = expr.eval();
         
         if let Ok(Answer::Single(expr_value)) = res {
-            println!("value = {:?}", expr_value);
             self.rate = expr_value;
             return expr_value;
         } 
@@ -82,6 +94,7 @@ pub struct Model {
     states: Vec<Vec<i32>>,
     populations: Vec<String>,
     times: Vec<f64>,
+    odes: HashMap<String,String>,
 }
 
 #[derive(Parser)]
@@ -96,10 +109,11 @@ impl Model {
             states: vec![],
             populations: vec![],
             times: vec![],
+            odes: HashMap::new(),
         }
     }    
 
-    pub fn parse_input(&mut self, path: &Path) {
+    fn parse_input<P: AsRef<Path>>(&mut self, path: P) {
         let mut input: String = String::from("");
         if let Ok(data) = utils::from_disk(path){
             input = data.into_iter().collect::<String>();
@@ -162,6 +176,13 @@ impl Model {
                                             for grand_child_rule in child_rule.into_inner() { //Fator level
                                             
                                                 if matches!(grand_child_rule.as_rule(), Rule::Fator){
+                                                    /*for last_rule in grand_child_rule.clone().into_inner() {
+                                                        if matches!(last_rule.as_rule(), Rule::Identifier){
+                                                        }
+                                                        else if matches!(last_rule.as_rule(), Rule::Number){
+
+                                                        }
+                                                    }*/
                                                     new_reaction.inputs.push(grand_child_rule.as_span().as_str().trim().to_string());    
                                                 }
                                             }
@@ -212,8 +233,7 @@ impl Model {
             for input in &reaction.inputs {
                 test = test.replace(&input.clone(), self.values.get(input).unwrap().value_type.clone().to_string().as_str());
             }
-            reaction.numeric_expr = test.clone();
-            //println!("{:?}", reaction.numeric_expr);
+            reaction.numeric_expr = test.clone();        
         }
     }
 
@@ -233,14 +253,85 @@ impl Model {
         return state
     }
 
-    pub fn gillespie(&mut self, t_final: f64){
-        //to do: get t_final from metadata
-        self.times.push(0.0);        
+    pub fn evaluate_odes(&self) -> Vec<(String,f64)>{
+        let mut results: Vec<(String,f64)> = vec![];
+
+        for ode in self.odes.iter() {
+            let mut test: String = ode.1.clone();
+            let re = Regex::new(r"[-+*/]").unwrap();
+        
+            //re.find_iter(&test).map(|m| m.as_str().to_string()).collect();
+            let operands: Vec<String> = re.split(&test).into_iter().map(|v| v.to_string()).collect(); 
+            println!("operands: {:?}", operands);
+            for operand in operands.iter(){
+                if ! operand.is_empty() {
+                    test = test.replace(&operand.clone(), self.values.get(operand).unwrap().value_type.clone().to_string().as_str());  
+                }                
+            }
+            
+            println!("test: {:?}", test);
+
+            let expr: Expression<f64> = Expression::parse(test.as_str()).unwrap();
+            let res: Result<mexprp::Answer<f64>, mexprp::MathError> = expr.eval();
+        
+            if let Ok(Answer::Single(expr_value)) = res {
+                results.push((ode.0.clone(),expr_value));
+            } 
+        }
+        return results
+    }
+
+    pub fn build_odes(&mut self){                  
+
+        for pop in self.populations.iter(){
+            
+            let mut equation: String = String::from("");
+
+            for reaction in self.reactions.iter(){
+             
+                for output in reaction.outputs.iter(){
+              
+                    if *pop == (*output).0 {
+                        //println!("{:#?}", output);
+                        //println!("{:#?}", pop);
+                        //println!("reaction = {:?}", reaction);
+                        if output.1 == -1 {
+                            equation.push_str("-");
+                        }
+                        else {
+                            equation.push_str("+");
+                        }
+                        equation.push_str(&reaction.expr_text);
+                    }
+                }    
+            }
+            self.odes.insert(pop.clone(), equation.clone());
+            println!("ode for {:?}: {:?}", pop, equation);
+        }
+    }
+
+    pub fn gillespie(&mut self, f_name: String){
+        let mut file_name = f_name.clone();
+        let mut outfile_name = f_name.clone();
+        file_name.push_str(".txt");
+        self.parse_input::<String>(file_name);
+        
+        if self.values.contains_key("t_ini"){
+            self.times.push(self.values.get("t_ini").unwrap().value_type);            
+        }
+        else {
+            self.times.push(0.0);
+        }
+        let mut t_final: f64 = 10.0;
+        if self.values.contains_key("t_final"){
+            t_final = self.values.get("t_final").unwrap().value_type;
+        }
+        
         self.update_reactions();
         self.states.push(self.update_population());
         
         while self.times.last().unwrap() < &t_final {
-            println!("state (t = {:?}): {:#?}", self.times.last().unwrap(), self.states.last().unwrap());
+            //println!("state (t = {:?}): {:#?}", self.times.last().unwrap(), self.states.last().unwrap());
                     
             self.calculate_rates();
 
@@ -256,7 +347,7 @@ impl Model {
             let choices = random_choice()
                                             .random_choice_f64(&self.reactions, &weights, 1);
             for choice in choices {
-                println!("reaction chosen = {:?}", choice);
+                //println!("reaction chosen = {:?}", choice);
                 
                 for output in choice.outputs.iter() {
                     self.values
@@ -265,16 +356,22 @@ impl Model {
                 }
             } 
 
-            println!("values: {:#?}", self.values);           
+            //println!("values: {:#?}", self.values);           
             
             let exp: Exp<f64> = Exp::new(sum).unwrap();
             let dt: f64 = exp.sample(&mut rand::thread_rng());            
             self.times.push(self.times.last().unwrap() + dt);
             
             self.states.push(self.update_population());
-            self.update_reactions();
-            CSVData::save_data(self).unwrap();
+            self.update_reactions();            
         }
 
+        outfile_name.push_str("_result.csv");
+        CSVData::save_data(self, &outfile_name).unwrap();
+        
+        //save times in a separate file 
+    }    
+
+    pub fn plot_results<P: AsRef<Path>>(&self, path: P){        
     }
 }

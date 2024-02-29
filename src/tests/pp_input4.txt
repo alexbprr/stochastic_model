@@ -1,0 +1,14 @@
+metadata: 
+    t_ini = 0.0,
+    t_final = 20.0;
+populations:
+    H = 100.0,
+    P = 8.0;
+constants:
+    r = 0.08,
+    a = 0.005, 
+    m = 0.5 ;
+reactions: 
+    r*H -> H,
+    a*H*P -> -H + P,
+    m*P -> -P ;
