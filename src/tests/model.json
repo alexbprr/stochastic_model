@@ -48,9 +48,9 @@
     "beta_Bm": 1e-6,
     "beta_pl": 5e-6,
     "beta_ps": 6e-6,
-    "beta_the": 0.0,
+    "beta_the": 0.001,
     "beta_thm": 0.00307966,
-    "beta_thn": 0.0,
+    "beta_thn": 0.001,
     "beta_tk": 0.0000143,
     "c_ap1": 8.0,
     "c_ap2": 8080000.0,
@@ -77,7 +77,7 @@
     "phi_B2": 1.27e-8,
     "pi_th": 1e-8,
     "pi_tk": 1e-8,
-    "pi_v": 0.115749,
+    "pi_v": 1.0,
     "react_thm": 0.00001
   },
   "reactions": [
