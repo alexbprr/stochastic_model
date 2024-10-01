@@ -1,0 +1,11 @@
+states 
+H = 50;
+P = 5;
+params
+r = 0.15;
+a = 0.008;
+m = 0.3; 
+reactions 
+r*H -> + H  ;
+a*H*P -> - H, + P  ;
+m*P -> - P   ;

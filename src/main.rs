@@ -1,34 +1,22 @@
-use core::num;
-use std::thread;
-use crate::model::Model;
+mod stochastic_model;
+mod settings;
+use anyhow::Error;
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
+use stochastic_model::sto_parser::parse_input;
+use std::path::Path;
+use settings::Settings;
 
-mod model;
-//to do: usar expressão regular para procurar numeros nas expressoes do lado esquerdo e direito 
-
-fn main(){
-    let mut number_of_threads: usize = 12;
-    let n_runs: usize = 4;
-    let slice: usize = 1;
-    if n_runs <= number_of_threads {
-        number_of_threads = n_runs;
-    }
-    else {
-        return;
-    }
-    let handle = thread::spawn(move || {
-        for i in 0..number_of_threads {
-            let j = i + 1;
-            println!("hi number {} from the spawned thread!", j);            
-            let mut f_name: String = format!("./src/tests/pp_input{j}");
-            let mut stochastic_model: Model = Model::new();
-            stochastic_model.gillespie(f_name.clone());
-            stochastic_model.build_odes();
-            let results: Vec<(String,f64)> = stochastic_model.evaluate_odes();
-            println!("results: {:#?}", results);
-            f_name.push_str(".png");
-            //stochastic_model.plot_results::<String>(f_name);
-        } 
+pub fn simulate(t_final: f64, num_execs: usize){
+    (1..num_execs+1).into_par_iter().for_each( |k| {
+        let mut model = parse_input(&String::from("./src/tests/hiv_model.txt"));
+        model.gillespie(t_final, String::from("./src/tests/results_"), k);
+        model.plot_results(k);
+        model.plot_results_manyplots(k);        
     });
+}
+
+fn main() -> Result<(),Error> {
+    simulate(1.0, 1);    
     
-    handle.join().unwrap();
+    Ok(())
 }
