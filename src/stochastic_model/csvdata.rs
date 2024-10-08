@@ -1,7 +1,5 @@
 use std::io::Read;
 
-use crate::locale::Locale;
-
 #[derive(Default, Debug, Clone)]
 pub struct CSVData {
     pub labels: Vec<String>,
@@ -15,14 +13,6 @@ pub struct PlotInfo {
     pub xlabel: String,
     pub ylabel: String,
     pub data: CSVData,
-}
-
-#[derive(Default, Clone)]
-pub struct PlotLayout {
-    pub rows: u32,
-    pub cols: u32,
-    pub number_of_tabs: u32,
-    pub active_tabs: Vec<u32>,
 }
 
 impl CSVData {
@@ -68,29 +58,13 @@ impl CSVData {
     }
 }
 
-impl PlotLayout {
-    pub fn new(r: u32, c: u32, n_tabs: u32) -> Self {
-        Self {
-            rows: r,
-            cols: c,
-            number_of_tabs: n_tabs,
-            active_tabs: vec![],
-        }
-    }
-}
-
 impl PlotInfo {
-    pub fn new(data: CSVData, locale: &Locale) -> Self {
+    pub fn new(data: CSVData) -> Self {
         Self {
             data,
             title: String::from(""),
-            xlabel: locale.get("default-x-label").to_owned(),
-            ylabel: locale.get("default-y-label").to_owned(),
+            xlabel: String::from("time"),
+            ylabel: String::from("population"),
         }
-    }
-
-    pub fn update_locale(&mut self, locale: &Locale) {
-        self.xlabel = locale.get("default-x-label").to_owned();
-        self.ylabel = locale.get("default-y-label").to_owned();
     }
 }

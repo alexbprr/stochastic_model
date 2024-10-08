@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, fs::File, io::{BufWriter, Write}, path::Path};
+use std::{collections::{BTreeMap, HashSet}, fs::File, intrinsics::const_eval_select, io::{BufWriter, Write}, path::Path};
 use expr_evaluator::expr::{ExprContext, Expression};
 use rand::Rng;
 use rand_distr::{Distribution, Exp};
@@ -7,8 +7,10 @@ use plotpy::{Curve, Legend, Plot};
 use colorgrad::Gradient;
 use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator};
 use serde::{Serialize,Deserialize};
+use std::hash::Hash;
 pub mod sto_parser;
 mod plot;
+mod csvdata;
 
 #[derive(Clone,Debug,Serialize,Deserialize)]
 pub enum Sign {
@@ -41,14 +43,52 @@ impl Reaction {
     }
 }
 
+#[derive(Clone,Debug,Serialize,Deserialize,Eq)]
+struct Population {    
+    name: String,
+    initial_value: i32,
+    value: i32,
+    values: Vec<i32>, 
+}
+
+impl Population {
+    pub fn new(name: String, value: i32) -> Self{
+        let mut values = Vec::with_capacity(100);
+        values.push(value);
+        Self{ 
+            name, 
+            initial_value: value, 
+            value, 
+            values,
+        }
+    }
+
+    pub fn set_value(&mut self, new_value: i32){
+        self.value = new_value;        
+        self.values.push(new_value);
+    }
+}
+
+impl Hash for Population {
+
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.name.hash(state);        
+    }
+}
+
+impl PartialEq for Population {
+    
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+    }
+}
+
 #[derive(Clone,Debug,Serialize,Deserialize)]
 pub struct StochasticModel {
     pub name: String,
-    pub initial_condition: BTreeMap<String,i32>,
-    pub populations: BTreeMap<String,i32>,
-    pub parameters: BTreeMap<String,f64>, //parameters are stored in the context of each expression that they are participating
+    pub populations: HashSet<Population>,
+    pub parameters: BTreeMap<String,f64>, //TODO: refactor //parameters are stored in the context of each expression that they are participating
     pub reactions: Vec<Reaction>,
-    pub outputs: BTreeMap<String,Vec<i32>>,
     pub times: Vec<f64>
 }
 
@@ -57,24 +97,24 @@ impl StochasticModel {
     pub fn new() -> Self {
         Self { 
             name: String::from("StochasticModel"), 
-            initial_condition: BTreeMap::new(),
-            populations: BTreeMap::new(), 
+            populations: HashSet::new(), 
             parameters: BTreeMap::new(), 
             reactions: vec![], 
-            outputs: BTreeMap::new(), 
             times: vec![] 
         }
     }
 
     pub fn clear_output(&mut self){
-        self.outputs.clear();
         self.times.clear(); 
         self.times = vec![];      
     }
 
     pub fn update_context(&mut self){
-        let mut context = ExprContext::new();
-        for p in self.populations.iter() {        
+        
+        for p in self.populations
+            .iter()
+            .map(|pop| (pop.name, pop.value as f64))
+            .chain(self.parameters.iter()) {        
             context.set_var(p.0.to_string(), *p.1 as f64);        
         }
         for p in self.parameters.iter() {
@@ -91,27 +131,24 @@ impl StochasticModel {
         }
     } 
 
-    pub fn save_initial_state(&mut self){
-        for p in self.initial_condition.iter(){
-            let mut values = vec![];
-            values.push(*p.1);
-            self.outputs.insert(p.0.to_string(), values);
-            self.populations.insert(p.0.to_string(), *p.1);
+    pub fn initial_context(&mut self){
+        let mut context = ExprContext::new();
+        for p in self.populations.iter(){
+            context
         }
     }
 
-    pub fn save_states(&mut self){
+   /*  pub fn save_states(&mut self){
         for p in self.populations.iter(){
             let values = self.outputs.get_mut(p.0).unwrap();
             values.push(*p.1);
         }
-    }
+    }*/
 
     pub fn gillespie(&mut self, t_final: f64, fname: String, exec_index: usize){
 
         let mut t: f64 = 0.0;
         self.times.push(t);
-        self.save_initial_state();
         self.update_context();
 
         while t < t_final {
@@ -136,8 +173,6 @@ impl StochasticModel {
             if choices.len() == 0 {
                 continue;
             }
-            
-            //let reaction = choices.get(0).unwrap();
 
             for reaction in choices.iter(){
                 for output in reaction.outputs.iter() {

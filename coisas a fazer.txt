@@ -1,0 +1,4 @@
+guardar quais variaveis serao atualizadas (vetor de operacoes a serem realizadas), percorrer o vetor (usar accumulate) 
+a cada passo, avaliar somente as expressões cuja variáveis foram atualizadas 
+usar SIMD
+módulo SIMD (https://doc.rust-lang.org/stable/std/simd/type.i32x4.html)
