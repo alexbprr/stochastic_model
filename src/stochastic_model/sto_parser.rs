@@ -3,7 +3,7 @@ use std::path::Path;
 use expr_evaluator::{expr::{ExprContext, LeafNode, Node, NodeType, Operator}, lexer::{self, *}};
 use expr_evaluator::expr::Operator::*;
 
-use super::{Reaction, Sign, StochasticModel};
+use super::{Reaction, State, StochasticModel};
 
 pub enum ParserError {
     FunctionNameNotFoundError
@@ -15,6 +15,7 @@ pub struct StoParser {
     c_token: Token,
     last_token: Token,
     index: usize,
+    reaction_id: usize,
     model: StochasticModel,
 }
 
@@ -26,6 +27,7 @@ impl StoParser {
             c_token: Token::new(0, 0, 0, TokenKind::Error(String::from(""))),
             last_token: Token::new(0, 0, 0, TokenKind::Error(String::from(""))),
             index: 0,
+            reaction_id: 0,
             model: StochasticModel::new()
         }
     }
@@ -130,8 +132,14 @@ impl StoParser {
                     TokenKind::Punctuation(Punctuation::LParen) =>{
                         return self.chamada_funcao(lexeme);
                     },
-                    _ => { 
+                    _ => {                         
                         self.back_token();
+                        
+                        match self.model.states.get_mut(&lexeme) {
+                            Some(state) => state.reactions.push(self.reaction_id),
+                            None => (),
+                        }                        
+
                         return Box::new(Node::Leaf(LeafNode { node_type: NodeType::Var, name: lexeme, value: 0.0, args: vec![] }))
                     }
                 }
@@ -202,8 +210,6 @@ impl StoParser {
 
     pub fn id_list(&mut self, reaction: &mut Reaction){
         
-        //println!("---------id_list--------");
-
         self.c_token = self.next_token();
         match self.c_token.token_type.clone() {
             TokenKind::Operators(Operators::Minus) => {
@@ -211,7 +217,7 @@ impl StoParser {
                 self.c_token = self.next_token();
                 match self.c_token.token_type.clone() {
                     TokenKind::Identifier(id) => {
-                        reaction.outputs.push((Sign::Negative,id));
+                        reaction.updates.insert(id, -1);
 
                         self.c_token = self.next_token();
                         match self.c_token.token_type.clone() {
@@ -229,12 +235,29 @@ impl StoParser {
                 self.c_token = self.next_token();
                 match self.c_token.token_type.clone() {
                     TokenKind::Identifier(id) => {
-                        reaction.outputs.push((Sign::Positive,id));
+                        reaction.updates.insert(id, 1);
 
                         self.c_token = self.next_token();
                         match self.c_token.token_type.clone() {
                             TokenKind::Punctuation(Punctuation::Comma) => {
                                 self.id_list(reaction);
+                            }
+                            _ => self.back_token(),
+                        }
+                    }
+                    TokenKind::Operators(Operators::Minus) => {
+                        self.c_token = self.next_token();
+                        match self.c_token.token_type.clone() {
+                            TokenKind::Identifier(id) => {
+                                reaction.updates.insert(id, 0);
+
+                                self.c_token = self.next_token();
+                                match self.c_token.token_type.clone() {
+                                    TokenKind::Punctuation(Punctuation::Comma) => {
+                                        self.id_list(reaction);
+                                    }
+                                    _ => self.back_token(),
+                                }
                             }
                             _ => self.back_token(),
                         }
@@ -251,7 +274,7 @@ impl StoParser {
         //println!("---------reaction_list--------");
 
         let mut reaction = Reaction::new();
-        reaction.input.ast = Some(self.expr());
+        reaction.expr.ast = Some(self.expr());
         
         self.c_token = self.next_token();
         match self.c_token.token_type.clone() {
@@ -263,7 +286,8 @@ impl StoParser {
                 if self.c_token.token_type != TokenKind::Punctuation(Punctuation::Semicolon) {
                     println!("Erro sintatico na linha {}. \";\" esperado na entrada.", self.c_token.line_number);
                 }
-                self.model.reactions.push(reaction);                
+                self.model.reactions.insert(self.reaction_id, reaction);
+                self.reaction_id += 1;
             }
             _ => ()
         }
@@ -292,8 +316,8 @@ impl StoParser {
                     match self.c_token.token_type.clone() {
                         TokenKind::IntConst(v) => {
                             if is_states {
-                                self.model.populations.insert(id.clone(), v);
-                                self.model.initial_condition.insert(id, v);
+                                let name = id.clone();
+                                self.model.states.insert(name.clone(),State::new(name.clone(), v));                               
                             }
                             else {
                                 self.model.parameters.insert(id, v as f64);
@@ -301,8 +325,8 @@ impl StoParser {
                         }
                         TokenKind::FloatConst(v) => {
                             if is_states {
-                                self.model.populations.insert(id.clone(), v as i32);
-                                self.model.initial_condition.insert(id, v as i32);
+                                let name = id.clone();
+                                self.model.states.insert(name.clone(),State::new(name.clone(), v as i32));
                             }
                             else {
                                 self.model.parameters.insert(id, v);
@@ -343,7 +367,7 @@ impl StoParser {
                 self.assign_list(true);
             }
             _ => () 
-        }
+        }        
         
         match self.c_token.token_type.clone() {
             TokenKind::ReservedWords(ReservedWords::Params) => {
@@ -367,6 +391,6 @@ pub fn parse_input(fname: String) -> StochasticModel{
     //save_tokens(&tokens, &Path::new(&String::from("./src/tests/tokens.json"))).unwrap();
     let mut parser = StoParser::new(tokens);
     parser.parse();
-    parser.model.save_model(&Path::new(&String::from("./src/tests/model.json")));
+    parser.model.save_model(&Path::new(&String::from(fname.to_string() + ".json")));
     return parser.model;
 }

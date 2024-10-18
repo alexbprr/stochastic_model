@@ -1,94 +1,80 @@
-use std::{collections::{BTreeMap, HashSet}, fs::File, intrinsics::const_eval_select, io::{BufWriter, Write}, path::Path};
+use std::{collections::{BTreeMap, HashMap}, fs::File, io::{BufWriter, Write}, path::Path};
 use expr_evaluator::expr::{ExprContext, Expression};
-use rand::Rng;
 use rand_distr::{Distribution, Exp};
-use random_choice::random_choice;
 use plotpy::{Curve, Legend, Plot};
 use colorgrad::Gradient;
-use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator};
 use serde::{Serialize,Deserialize};
-use std::hash::Hash;
 pub mod sto_parser;
 mod plot;
 mod csvdata;
 
 #[derive(Clone,Debug,Serialize,Deserialize)]
-pub enum Sign {
-    Negative,
-    Positive,
-}
-
-#[derive(Clone,Debug,Serialize,Deserialize)]
 pub struct Reaction {
-    pub input: Expression,
-    pub outputs: Vec<(Sign,String)>,
+    pub updates: HashMap<String,i32>,
+    pub expr: Expression,
     pub rate: f64,
+    pub time: f64,
 }
 
 impl Reaction {
 
     pub fn new() -> Self {
-        Self { 
-            input: Expression::new(), 
-            outputs: vec![], 
+        Self {
+            updates: HashMap::new(),
+            expr: Expression::new(),
             rate: 0.0,
+            time: 100.0,
         }
     }
 
-    pub fn eval (&mut self) {
-        match self.input.eval() {
+    pub fn update_rate_and_time (&mut self) {
+        match self.expr.eval() {
             Ok(v) => self.rate = v,
             Err(e) => {println!("An error ocurred during expression evaluation: {:?}", e); self.rate = 0.0; },
         };
+        let rate = f64::abs(self.rate);
+        
+        match Exp::new(rate) {
+            Ok(exp) => {
+                self.time = exp.sample(&mut rand::thread_rng());
+            },
+            Err(e) => {
+                println!("An error ocurred: {:?}", e); 
+                self.time = 100.0;
+            },
+        } 
     }
 }
 
-#[derive(Clone,Debug,Serialize,Deserialize,Eq)]
-struct Population {    
+#[derive(Clone,Debug,Serialize,Deserialize)]
+pub struct State {    
     name: String,
     initial_value: i32,
     value: i32,
     values: Vec<i32>, 
+    reactions: Vec<usize>, 
 }
 
-impl Population {
+impl State {
     pub fn new(name: String, value: i32) -> Self{
         let mut values = Vec::with_capacity(100);
         values.push(value);
         Self{ 
             name, 
             initial_value: value, 
-            value, 
+            value: value, 
             values,
+            reactions: vec![]
         }
-    }
-
-    pub fn set_value(&mut self, new_value: i32){
-        self.value = new_value;        
-        self.values.push(new_value);
-    }
-}
-
-impl Hash for Population {
-
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.name.hash(state);        
-    }
-}
-
-impl PartialEq for Population {
-    
-    fn eq(&self, other: &Self) -> bool {
-        self.name == other.name
     }
 }
 
 #[derive(Clone,Debug,Serialize,Deserialize)]
 pub struct StochasticModel {
     pub name: String,
-    pub populations: HashSet<Population>,
-    pub parameters: BTreeMap<String,f64>, //TODO: refactor //parameters are stored in the context of each expression that they are participating
-    pub reactions: Vec<Reaction>,
+    pub states: BTreeMap<String,State>,
+    pub reactions: HashMap<usize,Reaction>,
+    pub parameters: BTreeMap<String,f64>,     
     pub times: Vec<f64>
 }
 
@@ -97,108 +83,98 @@ impl StochasticModel {
     pub fn new() -> Self {
         Self { 
             name: String::from("StochasticModel"), 
-            populations: HashSet::new(), 
-            parameters: BTreeMap::new(), 
-            reactions: vec![], 
+            states: BTreeMap::new(), 
+            reactions: HashMap::new(), 
+            parameters: BTreeMap::new(),             
             times: vec![] 
         }
     }
 
-    pub fn clear_output(&mut self){
-        self.times.clear(); 
-        self.times = vec![];      
-    }
-
-    pub fn update_context(&mut self){
-        
-        for p in self.populations
-            .iter()
-            .map(|pop| (pop.name, pop.value as f64))
-            .chain(self.parameters.iter()) {        
-            context.set_var(p.0.to_string(), *p.1 as f64);        
+    pub fn set_initial_context(&mut self){
+        let mut context = ExprContext::new();
+        for s in self.states.values(){
+            context.insert_var(s.name.clone(), s.initial_value as f64);
         }
         for p in self.parameters.iter() {
-            context.set_var(p.0.to_string(), *p.1);        
+            context.insert_var(p.0.to_string(), *p.1);        
         }
-        for reaction in self.reactions.iter_mut() {
-            reaction.input.set_context(context.clone());
-        }
-    }
-
-    pub fn calculate_rates(&mut self) {
-        for r in self.reactions.iter_mut(){
-            r.eval();
-        }
-    } 
-
-    pub fn initial_context(&mut self){
-        let mut context = ExprContext::new();
-        for p in self.populations.iter(){
-            context
+        for reaction in self.reactions.values_mut() {
+            reaction.expr.context = context.clone();
+            reaction.update_rate_and_time();
         }
     }
 
-   /*  pub fn save_states(&mut self){
-        for p in self.populations.iter(){
-            let values = self.outputs.get_mut(p.0).unwrap();
-            values.push(*p.1);
+    pub fn choose_reaction(&self) -> Reaction {
+        let mut choice = Reaction::new();
+        let mut min_time: f64 = 100.0;
+        for reaction in self.reactions.values() {
+            if reaction.time < min_time {
+                min_time = reaction.time;
+                choice = reaction.clone();
+            }
         }
-    }*/
+        return choice
+    }
 
     pub fn gillespie(&mut self, t_final: f64, fname: String, exec_index: usize){
 
         let mut t: f64 = 0.0;
         self.times.push(t);
-        self.update_context();
+        self.set_initial_context();    
+        let mut reaction_chosen = self.choose_reaction();
 
-        while t < t_final {
+        while t < t_final {            
 
-            self.calculate_rates();
+            //println!("chosen = {:?}", reaction_chosen.expr.ast);
+            
+            for state in self.states.values_mut(){
+                state.values.push(state.value);
+            }
 
-            let sum: f64 = self.reactions
-                            .par_iter()
-                            .map(|r| r.rate)
-                            .sum();                            
-            //println!("sum: {:?}", sum);            
-            if sum == 0.0 {
+            let mut states_to_update: Vec<State> = vec![];
+            for (name, v) in reaction_chosen.updates.iter(){
+                //atualiza o valor do state correspondente                 
+                let state = self.states.get_mut(name).unwrap();
+                if *v == 0 && reaction_chosen.rate < 0.0 {
+                    state.value -= 1;                    
+                }
+                else if *v == 0 && reaction_chosen.rate > 0.0 {
+                    state.value += 1;                    
+                }
+                else {
+                    state.value += v;
+                }
+                
+                let length = state.values.len();
+                state.values[length - 1] = state.value;
+                states_to_update.push(state.clone());
+            }
+
+            //atualiza o contexto e reavalia somente as reacoes afetadas
+            for state in states_to_update.iter(){
+                for pos in state.reactions.iter(){
+                    let r = self.reactions.get_mut(pos).unwrap();                    
+                    r.expr.context.set_var(&state.name, state.value as f64);
+                    r.update_rate_and_time();                    
+                }
+            }
+
+            reaction_chosen = self.choose_reaction();
+            if reaction_chosen.time > t_final {
                 break;
             }
-            let weights: Vec<f64> = self.reactions
-                                .par_iter()
-                                .map(|r| r.rate/sum)
-                                .collect();
 
-            let choices = random_choice().random_choice_f64(&self.reactions, &weights, 10);
-
-            if choices.len() == 0 {
-                continue;
+            let mut dt = reaction_chosen.time;
+             
+            if dt < f64::powi(10.0, -4) {
+                dt = f64::powi(10.0, -4);
             }
-
-            for reaction in choices.iter(){
-                for output in reaction.outputs.iter() {
-                    let value = self.populations.get_mut(&output.1).unwrap();
-                    match output.0 {
-                        Sign::Negative => *value -= 1,
-                        Sign::Positive => *value += 1,
-                    }
-                }
-            }   
-
-            self.save_states();
-            self.update_context();                
-            //println!("Model output: {:#?}", self.outputs);
-            let rng = &mut rand::thread_rng();
-            //let random_num = rng.gen_range(0.0..1.0);
-            //let dt = - f64::log(random_num, 10.0)/sum;
-            
-            let exp: Exp<f64> = Exp::new(sum).unwrap();
-            let dt: f64 = exp.sample(rng); 
-            t += dt;
-            self.times.push(t);
+            t += dt;            
+            self.times.push(t); 
             println!("t = {:?}", t);            
         }
 
-        self.save_results( Path::new(&format!("{}{}{}", fname, exec_index, ".csv")) );
+        self.save_results( Path::new(&format!("{}{}{}", fname, exec_index, ".csv")));
     }    
     
     pub fn plot_results(&self, exec_index: usize) {
@@ -206,23 +182,16 @@ impl StochasticModel {
         plot.set_figure_size_points(900.0, 600.0);
         plot.set_labels("time (days)", "population");
 
-        /*let grad = colorgrad::GradientBuilder::new()
-                .html_colors(&["deeppink", "gold", "seagreen"])
-                .build::<colorgrad::CatmullRomGradient>().unwrap();*/
-        let grad = colorgrad::preset::rainbow();
+        let grad = colorgrad::GradientBuilder::new()
+            .html_colors(&["deeppink", "gold", "seagreen"])
+            .build::<colorgrad::CatmullRomGradient>().unwrap();
 
-        let p_size = self.populations.len();    
+        let p_size = self.states.len();    
         let mut color_ind: f32 = 0.0;        
         let color_inc: f32 = 1.0/(p_size as f32);
-        
-        
-        for population in self.populations.keys() {        
-            let results = self.outputs.get(population).unwrap();
-            let mut values: Vec<f64> = vec![];
-            for v in results {
-                values.push(*v as f64);
-            }
-
+                
+        for state in self.states.values() {
+            
             let rgba = grad.at(color_ind);
             color_ind += color_inc;
             let color = rgba.to_hex_string();           
@@ -230,9 +199,11 @@ impl StochasticModel {
             let mut curve = Curve::new();
             curve.set_line_width(1.3);    
             curve.set_line_color(&color);
-            curve.set_label(population);
+            curve.set_label(&state.name);
+
+            let values = state.clone().values.into_iter().map(|x| x as f64).collect();
             curve.draw(&self.times, &values);
-            plot.set_ymin(-1.0);
+            //plot.set_ymin(-1.0);
             plot.add(&curve);
         }
         let mut legend = Legend::new();
@@ -244,7 +215,7 @@ impl StochasticModel {
         legend.draw();
 
         plot.add(&legend);    
-        plot.save(&format!("{}{}{}", String::from("./src/tests/imgs/plot_"), exec_index, ".png")).unwrap();
+        plot.save(&format!("{}{}{}", String::from("./tests/imgs/plot_"), exec_index, ".png")).unwrap();
 
     }
 
@@ -252,13 +223,15 @@ impl StochasticModel {
                 .html_colors(&["deeppink", "gold", "seagreen"])
                 .build::<colorgrad::CatmullRomGradient>().unwrap();*/
     pub fn plot_results_manyplots(&self, exec_index: usize) {        
-        let grad = colorgrad::preset::rainbow();
+        let grad = colorgrad::GradientBuilder::new()
+                .html_colors(&["deeppink", "gold", "seagreen"])
+                .build::<colorgrad::CatmullRomGradient>().unwrap();
 
-        let p_size = self.populations.len();
+        let p_size = self.states.len();
         let mut color_ind: f32 = 0.0;
         let color_inc: f32 = 1.0/(p_size as f32);
         
-        for population in self.populations.keys() {
+        for state in self.states.values() {
             let mut plot = Plot::new();
             plot.set_figure_size_points(900.0, 600.0);
             plot.set_labels("time (days)", "population");            
@@ -270,10 +243,9 @@ impl StochasticModel {
             let mut curve = Curve::new();
             curve.set_line_width(1.3);    
             curve.set_line_color(&color);
-            curve.set_label(population);
+            curve.set_label(&state.name);
 
-            let results = self.outputs.get(population).unwrap();
-            let values = results.into_iter().map(|x| *x as f64).collect();
+            let values = state.clone().values.into_iter().map(|x| x as f64).collect();
             curve.draw(&self.times, &values);
             plot.add(&curve);
 
@@ -286,7 +258,7 @@ impl StochasticModel {
             legend.draw();
 
             plot.add(&legend);
-            plot.save(&format!("{}_{}_{}{}", String::from("./src/tests/imgs/plot"), population, exec_index, ".png")).unwrap();
+            plot.save(&format!("{}_{}_{}{}", String::from("./tests/imgs/plot"), state.name, exec_index, ".png")).unwrap();
         }
 
     }
@@ -303,20 +275,20 @@ impl StochasticModel {
     
         // Write time and state vector in csv format        
         write!(buf,"time").unwrap();
-        for p_name in self.populations.keys() {
-            write!(buf,", {}", p_name).unwrap();
+        for state in self.states.iter() {
+            write!(buf,", {}", state.0).unwrap();
         }        
         write!(buf, "\n").unwrap();
 
-        let mut results: Vec<Vec<f64>> = vec![vec![0.0; self.populations.len()]; self.times.len()];
+        let mut results: Vec<Vec<f64>> = vec![vec![0.0; self.states.len()]; self.times.len()];
         
         let mut j = 0;
-        for (_name, values) in self.outputs.iter() { 
+        for state in self.states.values() { 
             let mut i: usize = 0;
             
-            for v in values.iter() {
+            for v in state.values.iter() {
                 results[i][j] = *v as f64;
-                i += 1;                
+                i += 1;
             }
             j += 1;
         }
@@ -335,6 +307,7 @@ impl StochasticModel {
         if let Err(e) = buf.flush() {
             println!("Could not write to file. Error: {:?}", e);
         }
+
     }
 
     pub fn save_model<P: AsRef<Path>>(&self, path: &P) {
