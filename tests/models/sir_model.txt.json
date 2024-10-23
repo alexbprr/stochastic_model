@@ -1,0 +1,125 @@
+{
+  "name": "StochasticModel",
+  "states": {
+    "I": {
+      "name": "I",
+      "initial_value": 5,
+      "value": 5,
+      "values": [
+        5
+      ],
+      "reactions": [
+        0,
+        1
+      ]
+    },
+    "R": {
+      "name": "R",
+      "initial_value": 0,
+      "value": 0,
+      "values": [
+        0
+      ],
+      "reactions": []
+    },
+    "S": {
+      "name": "S",
+      "initial_value": 80,
+      "value": 80,
+      "values": [
+        80
+      ],
+      "reactions": [
+        0
+      ]
+    }
+  },
+  "reactions": {
+    "1": {
+      "updates": {
+        "I": -1,
+        "R": 1
+      },
+      "expr": {
+        "context": {
+          "vars": {}
+        },
+        "ast": {
+          "BinaryExpr": {
+            "op": "Mult",
+            "left_expr": {
+              "Leaf": {
+                "node_type": "Var",
+                "name": "alpha",
+                "value": 0.0,
+                "args": []
+              }
+            },
+            "right_expr": {
+              "Leaf": {
+                "node_type": "Var",
+                "name": "I",
+                "value": 0.0,
+                "args": []
+              }
+            }
+          }
+        }
+      },
+      "rate": 0.0,
+      "time": 100.0
+    },
+    "0": {
+      "updates": {
+        "S": -1,
+        "I": 1
+      },
+      "expr": {
+        "context": {
+          "vars": {}
+        },
+        "ast": {
+          "BinaryExpr": {
+            "op": "Mult",
+            "left_expr": {
+              "BinaryExpr": {
+                "op": "Mult",
+                "left_expr": {
+                  "Leaf": {
+                    "node_type": "Var",
+                    "name": "beta",
+                    "value": 0.0,
+                    "args": []
+                  }
+                },
+                "right_expr": {
+                  "Leaf": {
+                    "node_type": "Var",
+                    "name": "S",
+                    "value": 0.0,
+                    "args": []
+                  }
+                }
+              }
+            },
+            "right_expr": {
+              "Leaf": {
+                "node_type": "Var",
+                "name": "I",
+                "value": 0.0,
+                "args": []
+              }
+            }
+          }
+        }
+      },
+      "rate": 0.0,
+      "time": 100.0
+    }
+  },
+  "parameters": {
+    "alpha": 0.05,
+    "beta": 0.006
+  },
+  "times": []
+}

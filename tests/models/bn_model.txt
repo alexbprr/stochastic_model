@@ -1,0 +1,12 @@
+states 
+B = 50;
+N = 1;
+CH = 0;
+
+params
+beta_ch = 0.006;
+alpha = 0.05;
+
+reactions 
+beta*S*I -> - S, + I  ;
+alpha*I -> - I, + R  ;

@@ -1,0 +1,150 @@
+{
+  "name": "StochasticModel",
+  "states": {
+    "H": {
+      "name": "H",
+      "initial_value": 50,
+      "value": 50,
+      "values": [
+        50
+      ],
+      "reactions": [
+        0,
+        1
+      ]
+    },
+    "P": {
+      "name": "P",
+      "initial_value": 5,
+      "value": 5,
+      "values": [
+        5
+      ],
+      "reactions": [
+        1,
+        2
+      ]
+    }
+  },
+  "reactions": {
+    "1": {
+      "updates": {
+        "H": -1,
+        "P": 1
+      },
+      "expr": {
+        "context": {
+          "vars": {}
+        },
+        "ast": {
+          "BinaryExpr": {
+            "op": "Mult",
+            "left_expr": {
+              "BinaryExpr": {
+                "op": "Mult",
+                "left_expr": {
+                  "Leaf": {
+                    "node_type": "Var",
+                    "name": "a",
+                    "value": 0.0,
+                    "args": []
+                  }
+                },
+                "right_expr": {
+                  "Leaf": {
+                    "node_type": "Var",
+                    "name": "H",
+                    "value": 0.0,
+                    "args": []
+                  }
+                }
+              }
+            },
+            "right_expr": {
+              "Leaf": {
+                "node_type": "Var",
+                "name": "P",
+                "value": 0.0,
+                "args": []
+              }
+            }
+          }
+        }
+      },
+      "rate": 0.0,
+      "time": 100.0
+    },
+    "0": {
+      "updates": {
+        "H": 1
+      },
+      "expr": {
+        "context": {
+          "vars": {}
+        },
+        "ast": {
+          "BinaryExpr": {
+            "op": "Mult",
+            "left_expr": {
+              "Leaf": {
+                "node_type": "Var",
+                "name": "r",
+                "value": 0.0,
+                "args": []
+              }
+            },
+            "right_expr": {
+              "Leaf": {
+                "node_type": "Var",
+                "name": "H",
+                "value": 0.0,
+                "args": []
+              }
+            }
+          }
+        }
+      },
+      "rate": 0.0,
+      "time": 100.0
+    },
+    "2": {
+      "updates": {
+        "P": -1
+      },
+      "expr": {
+        "context": {
+          "vars": {}
+        },
+        "ast": {
+          "BinaryExpr": {
+            "op": "Mult",
+            "left_expr": {
+              "Leaf": {
+                "node_type": "Var",
+                "name": "m",
+                "value": 0.0,
+                "args": []
+              }
+            },
+            "right_expr": {
+              "Leaf": {
+                "node_type": "Var",
+                "name": "P",
+                "value": 0.0,
+                "args": []
+              }
+            }
+          }
+        }
+      },
+      "rate": 0.0,
+      "time": 100.0
+    }
+  },
+  "parameters": {
+    "a": 0.01,
+    "m": 0.3,
+    "r": 0.15
+  },
+  "times": []
+}

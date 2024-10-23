@@ -1,19 +1,20 @@
-use std::{collections::{BTreeMap, HashMap}, fs::File, io::{BufWriter, Write}, path::Path};
+use std::{collections::{BTreeMap, HashMap, HashSet}, fs::File, io::{BufWriter, Write}, path::Path, thread::Thread};
 use expr_evaluator::expr::{ExprContext, Expression};
+use rand::rngs::ThreadRng;
 use rand_distr::{Distribution, Exp};
 use plotpy::{Curve, Legend, Plot};
 use colorgrad::Gradient;
 use serde::{Serialize,Deserialize};
 pub mod sto_parser;
-mod plot;
-mod csvdata;
+pub mod plot;
+pub mod csvdata;
 
 #[derive(Clone,Debug,Serialize,Deserialize)]
 pub struct Reaction {
     pub updates: HashMap<String,i32>,
     pub expr: Expression,
     pub rate: f64,
-    pub time: f64,
+    pub time: f64,    
 }
 
 impl Reaction {
@@ -23,11 +24,11 @@ impl Reaction {
             updates: HashMap::new(),
             expr: Expression::new(),
             rate: 0.0,
-            time: 100.0,
+            time: 100.0,            
         }
     }
 
-    pub fn update_rate_and_time (&mut self) {
+    pub fn update_rate_and_time (&mut self, rng: &mut ThreadRng) {
         match self.expr.eval() {
             Ok(v) => self.rate = v,
             Err(e) => {println!("An error ocurred during expression evaluation: {:?}", e); self.rate = 0.0; },
@@ -36,7 +37,7 @@ impl Reaction {
         
         match Exp::new(rate) {
             Ok(exp) => {
-                self.time = exp.sample(&mut rand::thread_rng());
+                self.time = exp.sample(rng);
             },
             Err(e) => {
                 println!("An error ocurred: {:?}", e); 
@@ -90,7 +91,7 @@ impl StochasticModel {
         }
     }
 
-    pub fn set_initial_context(&mut self){
+    pub fn set_initial_context(&mut self, rng: &mut ThreadRng){
         let mut context = ExprContext::new();
         for s in self.states.values(){
             context.insert_var(s.name.clone(), s.initial_value as f64);
@@ -100,13 +101,13 @@ impl StochasticModel {
         }
         for reaction in self.reactions.values_mut() {
             reaction.expr.context = context.clone();
-            reaction.update_rate_and_time();
+            reaction.update_rate_and_time(rng);
         }
     }
 
     pub fn choose_reaction(&self) -> Reaction {
         let mut choice = Reaction::new();
-        let mut min_time: f64 = 100.0;
+        let mut min_time: f64 = 1000.0;
         for reaction in self.reactions.values() {
             if reaction.time < min_time {
                 min_time = reaction.time;
@@ -120,7 +121,10 @@ impl StochasticModel {
 
         let mut t: f64 = 0.0;
         self.times.push(t);
-        self.set_initial_context();    
+
+        let rng: &mut ThreadRng = &mut rand::thread_rng();
+        self.set_initial_context(rng);
+        
         let mut reaction_chosen = self.choose_reaction();
 
         while t < t_final {            
@@ -150,22 +154,29 @@ impl StochasticModel {
                 states_to_update.push(state.clone());
             }
 
+            let mut reactions_to_update: HashSet<usize> = HashSet::new();
             //atualiza o contexto e reavalia somente as reacoes afetadas
             for state in states_to_update.iter(){
                 for pos in state.reactions.iter(){
                     let r = self.reactions.get_mut(pos).unwrap();                    
                     r.expr.context.set_var(&state.name, state.value as f64);
-                    r.update_rate_and_time();                    
+                    reactions_to_update.insert(*pos);
                 }
             }
+
+            for pos in reactions_to_update.iter(){
+                let r = self.reactions.get_mut(pos).unwrap();
+                r.update_rate_and_time(rng);
+            }
+
+            states_to_update.clear();
 
             reaction_chosen = self.choose_reaction();
             if reaction_chosen.time > t_final {
                 break;
             }
 
-            let mut dt = reaction_chosen.time;
-             
+            let mut dt = reaction_chosen.time;             
             if dt < f64::powi(10.0, -4) {
                 dt = f64::powi(10.0, -4);
             }
@@ -234,7 +245,7 @@ impl StochasticModel {
         for state in self.states.values() {
             let mut plot = Plot::new();
             plot.set_figure_size_points(900.0, 600.0);
-            plot.set_labels("time (days)", "population");            
+            plot.set_labels("time (days)", &state.name);            
             
             let rgba = grad.at(color_ind);
             color_ind += color_inc;
