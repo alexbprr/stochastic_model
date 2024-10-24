@@ -27,6 +27,39 @@
     }
   },
   "reactions": {
+    "0": {
+      "updates": {
+        "H": 1
+      },
+      "expr": {
+        "context": {
+          "vars": {}
+        },
+        "ast": {
+          "BinaryExpr": {
+            "op": "Mult",
+            "left_expr": {
+              "Leaf": {
+                "node_type": "Var",
+                "name": "r",
+                "value": 0.0,
+                "args": []
+              }
+            },
+            "right_expr": {
+              "Leaf": {
+                "node_type": "Var",
+                "name": "H",
+                "value": 0.0,
+                "args": []
+              }
+            }
+          }
+        }
+      },
+      "rate": 0.0,
+      "time": 100.0
+    },
     "1": {
       "updates": {
         "H": -1,
@@ -74,39 +107,6 @@
       "rate": 0.0,
       "time": 100.0
     },
-    "0": {
-      "updates": {
-        "H": 1
-      },
-      "expr": {
-        "context": {
-          "vars": {}
-        },
-        "ast": {
-          "BinaryExpr": {
-            "op": "Mult",
-            "left_expr": {
-              "Leaf": {
-                "node_type": "Var",
-                "name": "r",
-                "value": 0.0,
-                "args": []
-              }
-            },
-            "right_expr": {
-              "Leaf": {
-                "node_type": "Var",
-                "name": "H",
-                "value": 0.0,
-                "args": []
-              }
-            }
-          }
-        }
-      },
-      "rate": 0.0,
-      "time": 100.0
-    },
     "2": {
       "updates": {
         "P": -1
@@ -142,7 +142,7 @@
     }
   },
   "parameters": {
-    "a": 0.01,
+    "a": 0.02,
     "m": 0.3,
     "r": 0.15
   },

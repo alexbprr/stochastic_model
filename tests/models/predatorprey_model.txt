@@ -3,7 +3,7 @@ H = 50;
 P = 5;
 params
 r = 0.15;
-a = 0.01;
+a = 0.02;
 m = 0.3; 
 reactions 
 r*H -> + H  ;

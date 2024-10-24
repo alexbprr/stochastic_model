@@ -13,7 +13,8 @@ pub struct CSVData {
 impl CSVData {
 
     pub fn load_data(dir_path: &str) -> std::io::Result<Self> {
-        let dir: &Path = &Path::new(dir_path);
+        let dir: &Path = &Path::new(dir_path);        
+
         let mut data = CSVData::default();
         
         let mut index = 0;
@@ -88,14 +89,13 @@ impl CSVData {
         Ok(data)
     }
 
-    pub fn plot_all_data(&self){
+    pub fn plot_all(&self){
 
         let grad = colorgrad::GradientBuilder::new()
                 .html_colors(&["deeppink", "gold", "darkgreen"])
                 .build::<colorgrad::CatmullRomGradient>().unwrap();
-        println!("gradient = {:#?}", grad);
+        //println!("gradient = {:#?}", grad);
 
-        let p_size = self.labels.len();        
         let n_execs: usize = self.times.len();
         
         for label in self.labels.iter() {
@@ -106,6 +106,7 @@ impl CSVData {
             let mut plot = Plot::new();
             plot.set_figure_size_points(900.0, 600.0);
             plot.set_labels("time (days)", label);
+            plot.set_cross(0.0, 0.0, "grey", "solid", 1.0);
     
             for i in 0..n_execs {
                 

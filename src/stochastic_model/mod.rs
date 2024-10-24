@@ -117,7 +117,7 @@ impl StochasticModel {
         return choice
     }
 
-    pub fn gillespie(&mut self, t_final: f64, fname: String, exec_index: usize){
+    pub fn gillespie(&mut self, t_final: f64, fname: String, exec_index: usize){        
 
         let mut t: f64 = 0.0;
         self.times.push(t);
@@ -154,35 +154,37 @@ impl StochasticModel {
                 states_to_update.push(state.clone());
             }
 
-            let mut reactions_to_update: HashSet<usize> = HashSet::new();
             //atualiza o contexto e reavalia somente as reacoes afetadas
             for state in states_to_update.iter(){
                 for pos in state.reactions.iter(){
-                    let r = self.reactions.get_mut(pos).unwrap();                    
-                    r.expr.context.set_var(&state.name, state.value as f64);
-                    reactions_to_update.insert(*pos);
+                    let r = self.reactions.get_mut(pos).unwrap();
+                    r.expr.context.set_var(&state.name, state.value as f64);                    
                 }
             }
 
-            for pos in reactions_to_update.iter(){
-                let r = self.reactions.get_mut(pos).unwrap();
-                r.update_rate_and_time(rng);
+            for state in states_to_update.iter(){
+                for pos in state.reactions.iter(){
+                    let r = self.reactions.get_mut(pos).unwrap();
+                    r.update_rate_and_time(rng);
+                }
             }
-
-            states_to_update.clear();
 
             reaction_chosen = self.choose_reaction();
-            if reaction_chosen.time > t_final {
-                break;
-            }
-
-            let mut dt = reaction_chosen.time;             
+            let mut dt = reaction_chosen.time;            
+            
             if dt < f64::powi(10.0, -4) {
                 dt = f64::powi(10.0, -4);
             }
-            t += dt;            
+            t += dt;
             self.times.push(t); 
-            println!("t = {:?}", t);            
+            println!("t = {:?}", t);
+
+            if t > t_final + 1.0 {
+                self.times.remove(self.times.len() - 1);
+                for state in self.states.values_mut(){
+                    state.values.remove(state.values.len()-1);
+                }
+            }
         }
 
         self.save_results( Path::new(&format!("{}{}{}", fname, exec_index, ".csv")));
@@ -233,7 +235,7 @@ impl StochasticModel {
     /*let grad = colorgrad::GradientBuilder::new()
                 .html_colors(&["deeppink", "gold", "seagreen"])
                 .build::<colorgrad::CatmullRomGradient>().unwrap();*/
-    pub fn plot_results_manyplots(&self, exec_index: usize) {        
+    pub fn plot(&self, exec_index: usize) {        
         let grad = colorgrad::GradientBuilder::new()
                 .html_colors(&["deeppink", "gold", "seagreen"])
                 .build::<colorgrad::CatmullRomGradient>().unwrap();
@@ -245,7 +247,8 @@ impl StochasticModel {
         for state in self.states.values() {
             let mut plot = Plot::new();
             plot.set_figure_size_points(900.0, 600.0);
-            plot.set_labels("time (days)", &state.name);            
+            plot.set_labels("time (days)", &state.name);   
+            plot.set_cross(0.0, 0.0, "grey", "solid", 1.0);         
             
             let rgba = grad.at(color_ind);
             color_ind += color_inc;

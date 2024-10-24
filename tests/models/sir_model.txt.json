@@ -35,40 +35,6 @@
     }
   },
   "reactions": {
-    "1": {
-      "updates": {
-        "I": -1,
-        "R": 1
-      },
-      "expr": {
-        "context": {
-          "vars": {}
-        },
-        "ast": {
-          "BinaryExpr": {
-            "op": "Mult",
-            "left_expr": {
-              "Leaf": {
-                "node_type": "Var",
-                "name": "alpha",
-                "value": 0.0,
-                "args": []
-              }
-            },
-            "right_expr": {
-              "Leaf": {
-                "node_type": "Var",
-                "name": "I",
-                "value": 0.0,
-                "args": []
-              }
-            }
-          }
-        }
-      },
-      "rate": 0.0,
-      "time": 100.0
-    },
     "0": {
       "updates": {
         "S": -1,
@@ -100,6 +66,40 @@
                     "args": []
                   }
                 }
+              }
+            },
+            "right_expr": {
+              "Leaf": {
+                "node_type": "Var",
+                "name": "I",
+                "value": 0.0,
+                "args": []
+              }
+            }
+          }
+        }
+      },
+      "rate": 0.0,
+      "time": 100.0
+    },
+    "1": {
+      "updates": {
+        "I": -1,
+        "R": 1
+      },
+      "expr": {
+        "context": {
+          "vars": {}
+        },
+        "ast": {
+          "BinaryExpr": {
+            "op": "Mult",
+            "left_expr": {
+              "Leaf": {
+                "node_type": "Var",
+                "name": "alpha",
+                "value": 0.0,
+                "args": []
               }
             },
             "right_expr": {
