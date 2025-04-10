@@ -11,24 +11,56 @@ pub mod csvdata;
 
 #[derive(Clone,Debug,Serialize,Deserialize)]
 pub struct Reaction {
+    pub id: usize,
     pub updates: HashMap<String,i32>,
     pub expr: Expression,
     pub rate: f64,
-    pub time: f64,    
+    pub time: f64,
+    pub updated: bool,    
+}
+
+#[derive(Clone,Debug,Serialize,Deserialize)]
+pub struct LogData {
+    pub reactions: Vec<Reaction>,
+    //pub n_executions: HashMap<usize,usize>
 }
 
 impl Reaction {
 
     pub fn new() -> Self {
         Self {
+            id: 0,
             updates: HashMap::new(),
             expr: Expression::new(),
             rate: 0.0,
-            time: 100.0,            
+            time: 100.0,      
+            updated: false      
         }
     }
 
-    pub fn update_rate_and_time (&mut self, rng: &mut ThreadRng) {
+    pub fn update_rate(&mut self) {
+        
+        match self.expr.eval() {
+            Ok(v) => self.rate = v,
+            Err(e) => {println!("An error ocurred during expression evaluation: {:?}", e); self.rate = 0.0; },
+        };
+    }
+
+    pub fn update_time(&mut self, rng: &mut ThreadRng){
+        
+        match Exp::new(f64::abs(self.rate)) {
+            Ok(exp) => {
+                self.time = exp.sample(rng);
+            },
+            Err(e) => {
+                println!("An error ocurred: {:?}", e); 
+                self.time = 100.0;
+            },
+        }
+    }
+
+    pub fn update_rate_and_time(&mut self, rng: &mut ThreadRng) {        
+
         match self.expr.eval() {
             Ok(v) => self.rate = v,
             Err(e) => {println!("An error ocurred during expression evaluation: {:?}", e); self.rate = 0.0; },
@@ -119,17 +151,22 @@ impl StochasticModel {
 
     pub fn gillespie(&mut self, t_final: f64, fname: String, exec_index: usize){        
 
+        let mut reactions_executed: Vec<Reaction> = vec![];
         let mut t: f64 = 0.0;
         self.times.push(t);
 
         let rng: &mut ThreadRng = &mut rand::thread_rng();
         self.set_initial_context(rng);
         
-        let mut reaction_chosen = self.choose_reaction();
+        let mut reaction_chosen = self.choose_reaction();        
 
         while t < t_final {            
 
-            //println!("chosen = {:?}", reaction_chosen.expr.ast);
+            reactions_executed.push(reaction_chosen.clone());
+
+            for (_, reaction) in self.reactions.iter_mut(){
+                reaction.updated = false;
+            }
             
             for state in self.states.values_mut(){
                 state.values.push(state.value);
@@ -154,22 +191,24 @@ impl StochasticModel {
                 states_to_update.push(state.clone());
             }
 
+            let mut reactions_to_update: Vec<usize> = vec![];
             //atualiza o contexto e reavalia somente as reacoes afetadas
             for state in states_to_update.iter(){
                 for pos in state.reactions.iter(){
                     let r = self.reactions.get_mut(pos).unwrap();
-                    r.expr.context.set_var(&state.name, state.value as f64);                    
+                    r.expr.context.set_var(&state.name, state.value as f64);
+                    reactions_to_update.push(*pos);                    
                 }
             }
 
-            for state in states_to_update.iter(){
-                for pos in state.reactions.iter(){
-                    let r = self.reactions.get_mut(pos).unwrap();
-                    r.update_rate_and_time(rng);
-                }
+            for pos in reactions_to_update.iter(){
+                let r = self.reactions.get_mut(pos).unwrap();
+                r.update_rate_and_time(rng);
+                r.updated = true;
             }
-
+        
             reaction_chosen = self.choose_reaction();
+            
             let mut dt = reaction_chosen.time;            
             
             if dt < f64::powi(10.0, -4) {
@@ -187,6 +226,7 @@ impl StochasticModel {
             }
         }
 
+        StochasticModel::save_log(&LogData { reactions: reactions_executed}, &String::from(format!("{}{}{}", String::from("./tests/logs/"), exec_index, "_log.txt")));
         self.save_results( Path::new(&format!("{}{}{}", fname, exec_index, ".csv")));
     }    
     
@@ -334,5 +374,24 @@ impl StochasticModel {
         };
         let writer: BufWriter<File> = BufWriter::new(file);        
         serde_json::to_writer_pretty(writer, self).unwrap();
+    }
+
+    pub fn save_log<P: AsRef<Path>>(log: &LogData, path: &P) {
+        let file = match File::create(path) {
+            Err(e) => {
+                println!("Could not open file. Error: {:?}", e);
+                return;
+            }
+            Ok(buf) => buf,
+        };
+        let mut buf = BufWriter::new(file);
+    
+        for reaction in log.reactions.iter() {
+            write!(buf,"{}, ", reaction.id).unwrap();
+        }
+        
+        if let Err(e) = buf.flush() {
+            println!("Could not write to file. Error: {:?}", e);
+        }
     }
 }

@@ -29,10 +29,9 @@ pub fn simulate(model_name: &str, path: &str, t_final: f64, num_execs: usize){
     });
 }
 
-
 #[test]
 pub fn test(){
-    simulate("./tests/models/viral_infection.txt","./tests/results/",30.0, 4);
+    simulate("./tests/models/sir_model.txt","./tests/results/",30.0, 4);
     let data_loaded: CSVData = CSVData::load_data("./tests/results/").unwrap();
     data_loaded.plot_all();
 }

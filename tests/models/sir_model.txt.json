@@ -37,8 +37,8 @@
   "reactions": {
     "0": {
       "updates": {
-        "S": -1,
-        "I": 1
+        "I": 1,
+        "S": -1
       },
       "expr": {
         "context": {
@@ -84,8 +84,8 @@
     },
     "1": {
       "updates": {
-        "I": -1,
-        "R": 1
+        "R": 1,
+        "I": -1
       },
       "expr": {
         "context": {

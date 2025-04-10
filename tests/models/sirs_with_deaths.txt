@@ -1,0 +1,16 @@
+states
+S = 80;
+I = 5;
+R = 0;
+
+params
+beta = 0.006;
+alpha = 0.05;
+gamma = 0.05;
+d = 0.1;
+
+reactions
+beta*S*I -> - S, + I  ;
+alpha*I -> - I, + R  ;
+gamma*R -> -R, + S;
+d*I -> -I;

@@ -286,6 +286,7 @@ impl StoParser {
                 if self.c_token.token_type != TokenKind::Punctuation(Punctuation::Semicolon) {
                     println!("Erro sintatico na linha {}. \";\" esperado na entrada.", self.c_token.line_number);
                 }
+                reaction.id = self.reaction_id;
                 self.model.reactions.insert(self.reaction_id, reaction);
                 self.reaction_id += 1;
             }
@@ -388,9 +389,8 @@ impl StoParser {
 
 pub fn parse_input(fname: String) -> StochasticModel{
     let tokens = lexer::tokenize_file(Path::new(&fname));
-    //save_tokens(&tokens, &Path::new(&String::from("./src/tests/tokens.json"))).unwrap();
     let mut parser = StoParser::new(tokens);
     parser.parse();
-    parser.model.save_model(&Path::new(&String::from(fname.to_string() + ".json")));
+    //parser.model.save_model(&Path::new(&String::from(fname.to_string() + ".json")));
     return parser.model;
 }

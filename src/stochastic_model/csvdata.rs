@@ -50,21 +50,28 @@ impl CSVData {
                         
                         let records_iter = reader.records();
                         for record in records_iter {
-                            let str_record = record.unwrap();
-                            
-                            let mut j = 0;
-                            for v in str_record.iter(){
-                                let value = v.trim();
-                                let label = &data.labels[j];
-                                if j == 0 {
-                                    times.push(value.parse::<f64>().unwrap());
-                                }
-                                else {
-                                    let data_entry = data.states.get_mut(label).unwrap();
-                                    data_entry.push(value.parse::<f64>().unwrap());       
-                                }
-                                j += 1;
-                            }
+                            match record {
+                                Ok(record_value) => {
+                                    let str_record = record_value;                            
+                                    let mut j = 0;
+                                    for v in str_record.iter(){
+                                        let value = v.trim();
+                                        let label = &data.labels[j];
+                                        if j == 0 {
+                                            match value.parse::<f64>() {
+                                                Ok(v) => times.push(v),
+                                                Err(e) => eprintln!("An error ocurrred in float conversion: {:?}", e),
+                                            }                                    
+                                        }
+                                        else {
+                                            let data_entry = data.states.get_mut(label).unwrap();
+                                            data_entry.push(value.parse::<f64>().unwrap());       
+                                        }
+                                        j += 1;
+                                    }
+                                },
+                                Err(e) => eprintln!("An error ocurrred while reading the csv file: {:?}", e),
+                            }                            
                         }
 
                         for j in 1..n_cols {

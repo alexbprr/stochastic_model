@@ -1,0 +1,3 @@
+x_label = "time"
+y_label = "concentration"
+labels = ["A", "B", "C"]

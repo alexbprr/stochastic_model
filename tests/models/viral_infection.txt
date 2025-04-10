@@ -24,7 +24,7 @@ params
    pi_v = 0.5;
    k_i_tke = 0.0979372;
    k_v1 = 0.024600;
-   k_v2 = 0.061;
+   k_v2 = 0.0061;
    alpha_ap = 0.5;
    c_ap1 = 1.0e-05;
    c_ap2 = 800000.0;
@@ -39,13 +39,13 @@ params
    phi_B1 = 0.0000898;
    phi_B2 = 1.27e-08;
    beta_ps = 8.0e-05;
-   beta_pl = 8.0e-05;
+   beta_pl = 2.0e-05;
    beta_Bm = 1.0e-05;
    delta_ps = 2.5;
-   delta_pl = 1.;
+   delta_pl = 1.8;
    gamma_bm = 9.75e-04;
-   delta_igm = 0.8;
-   delta_igg = 0.2;
+   delta_igm = 2.;
+   delta_igg = 1.5;
    k_bm1 = 0.01;
    k_bm2 = 25000.0;
    lambda_th = 0.00018;
@@ -53,8 +53,8 @@ params
    delta_thm = 1.0e-03;
    beta_thn = 0.000167493; 
    beta_the = 0.000167493;
-   p_igm = 0.2;
-   p_igg = 0.04;
+   p_igm = 0.02;
+   p_igg = 0.008;
    k_thmi = 0.0;
    delta_the = 0.1;
    beta_thm = 0.001;
